@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- الرئيسية -->
+  <url>
+    <loc>https://myasil.pages.dev/</loc>
+    <priority>1.0</priority>
+    <changefreq>weekly</changefreq>
+  </url>
+  <!-- المواريث -->
+  <url>
+    <loc>https://myasil.pages.dev/inheritance</loc>
+    <priority>0.8</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <!-- القرآن الكريم -->
+  <url>
+    <loc>https://myasil.pages.dev/quran</loc>
+    <priority>0.8</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <!-- التقويم الهجري -->
+  <url>
+    <loc>https://myasil.pages.dev/calendar</loc>
+    <priority>0.8</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <!-- مواقيت الصلاة -->
+  <url>
+    <loc>https://myasil.pages.dev/prayer-times</loc>
+    <priority>0.8</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <!-- الزكاة -->
+  <url>
+    <loc>https://myasil.pages.dev/zakat</loc>
+    <priority>0.8</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <!-- تواصل معنا -->
+  <url>
+    <loc>https://asil.pages.dev/contact</loc>
+    <priority>0.5</priority>
+    <changefreq>yearly</changefreq>
+  </url>
+</urlset>

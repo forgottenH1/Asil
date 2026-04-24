@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Calculator, BookOpen, Calendar, Clock, ArrowLeft, BadgeDollarSign } from 'lucide-react';
 
 const features = [
@@ -62,11 +62,45 @@ const itemVariants = {
 };
 
 const Home = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const query = params.get('q');
+    if (query) {
+      setSearchTerm(query);
+    }
+  }, [location.search]);
+
+  const filterText = searchTerm.trim().toLowerCase();
+  
+  const filteredFeatures = features.filter(f => 
+    f.title.toLowerCase().includes(filterText) || f.description.toLowerCase().includes(filterText)
+  );
+
+  const handleSearch = (e) => {
+    if (e) e.preventDefault();
+    if (filterText && filteredFeatures.length === 1) {
+      navigate(filteredFeatures[0].link);
+    } else if (filteredFeatures.length > 0) {
+      document.getElementById('features-section')?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleSearch(e);
+    }
+  };
+
   return (
     <div className="min-h-screen">
       <Helmet>
         <title>أصيل | الصفحة الرئيسية</title>
         <meta name="description" content="منصة أصيل، بيئتك الإسلامية المتكاملة لحساب المواريث والقرآن ومواقيت الصلاة." />
+        <meta property="og:image" content="https://myasil.pages.dev/og-image.png" />
       </Helmet>
 
       {/* Hero Section */}
@@ -93,10 +127,16 @@ const Home = () => {
               <div className="flex bg-white rounded-full p-2 shadow-lg border border-gray-100">
                 <input 
                   type="text" 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   placeholder="ابحث في المنصة..." 
                   className="w-full px-6 bg-transparent border-none focus:outline-none focus:ring-0 text-gray-700 font-sans"
                 />
-                <button className="btn-primary flex items-center justify-center rounded-full px-8 whitespace-nowrap">
+                <button 
+                  onClick={handleSearch}
+                  className="btn-primary flex items-center justify-center rounded-full px-8 whitespace-nowrap"
+                >
                   بحث
                 </button>
               </div>
@@ -106,41 +146,47 @@ const Home = () => {
       </section>
 
       {/* Features Section */}
-      <section className="pb-24">
+      <section id="features-section" className="pb-24">
         <div className="container mx-auto px-4">
-          <motion.div 
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-          >
-            {features.map((feature, idx) => {
-              const Icon = feature.icon;
-              return (
-                <motion.div key={idx} variants={itemVariants}>
-                  <Link to={feature.link} className="block group h-full">
-                    <div className="glass-card p-8 h-full transition-transform transform group-hover:-translate-y-2 group-hover:shadow-2xl">
-                      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 ${feature.color}`}>
-                        <Icon className="w-8 h-8" />
+          {filteredFeatures.length === 0 ? (
+            <div className="text-center text-gray-600 text-lg py-12">
+               عذراً، لم يتم العثور على نتائج مطابقة للبحث.
+            </div>
+          ) : (
+            <motion.div 
+              variants={containerVariants}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+            >
+              {filteredFeatures.map((feature, idx) => {
+                const Icon = feature.icon;
+                return (
+                  <motion.div key={idx} variants={itemVariants}>
+                    <Link to={feature.link} className="block group h-full">
+                      <div className="glass-card p-8 h-full transition-transform transform group-hover:-translate-y-2 group-hover:shadow-2xl">
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 ${feature.color}`}>
+                          <Icon className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-gray-800 mb-3 group-hover:text-primary transition-colors">
+                          {feature.title}
+                        </h3>
+                        <p className="text-gray-600 mb-6">
+                          {feature.description}
+                        </p>
+                        
+                        <div className="flex items-center text-primary font-bold gap-2">
+                          <span>تصفح الآن</span>
+                          <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-2" />
+                        </div>
                       </div>
-                      <h3 className="text-2xl font-bold text-gray-800 mb-3 group-hover:text-primary transition-colors">
-                        {feature.title}
-                      </h3>
-                      <p className="text-gray-600 mb-6">
-                        {feature.description}
-                      </p>
-                      
-                      <div className="flex items-center text-primary font-bold gap-2">
-                        <span>تصفح الآن</span>
-                        <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-2" />
-                      </div>
-                    </div>
-                  </Link>
-                </motion.div>
-              );
-            })}
-          </motion.div>
+                    </Link>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          )}
         </div>
       </section>
     </div>
