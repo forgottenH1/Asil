@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Calculator, BookOpen, Calendar, Clock, ArrowLeft, BadgeDollarSign } from 'lucide-react';
+import { Calculator, BookOpen, Calendar, Clock, ArrowLeft, BadgeDollarSign, CircleDot, Sparkles, Book, Compass, MapPin } from 'lucide-react';
 
 const features = [
   {
@@ -39,6 +39,41 @@ const features = [
     icon: BadgeDollarSign,
     link: '/zakat',
     color: 'bg-gold-100 text-gold-600',
+  },
+  {
+    title: 'المسبحة الإلكترونية',
+    description: 'سبّح واذكر الله بطريقة تفاعلية مع ميزة تتبع الأهداف.',
+    icon: CircleDot,
+    link: '/tasbih',
+    color: 'bg-teal-100 text-teal-600',
+  },
+  {
+    title: 'أسماء الله الحسنى',
+    description: 'تصفح وتعرف على معاني أسماء الله الحسنى التسعة وتسعين.',
+    icon: Sparkles,
+    link: '/names-of-allah',
+    color: 'bg-rose-100 text-rose-600',
+  },
+  {
+    title: 'الأذكار اليومية',
+    description: 'أذكار الصباح والمساء وبعد الصلاة من حصن المسلم.',
+    icon: Book,
+    link: '/adhkar',
+    color: 'bg-indigo-100 text-indigo-600',
+  },
+  {
+    title: 'بوصلة القبلة',
+    description: 'حدد اتجاه القبلة بدقة من أي مكان في العالم.',
+    icon: Compass,
+    link: '/qibla',
+    color: 'bg-cyan-100 text-cyan-600',
+  },
+  {
+    title: 'المساجد القريبة',
+    description: 'ابحث عن أقرب مسجد إليك بضغطة زر واحدة.',
+    icon: MapPin,
+    link: '/mosques',
+    color: 'bg-orange-100 text-orange-600',
   },
 ];
 

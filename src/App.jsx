@@ -12,6 +12,11 @@ import HijriCalendar from './pages/HijriCalendar';
 import PrayerTimes from './pages/PrayerTimes';
 import ZakatHub from './pages/ZakatHub';
 import Contact from './pages/Contact';
+import Tasbih from './pages/Tasbih';
+import NamesOfAllah from './pages/NamesOfAllah';
+import Adhkar from './pages/Adhkar';
+import QiblaFinder from './pages/QiblaFinder';
+import NearbyMosques from './pages/NearbyMosques';
 import ScrollToTop from './components/ScrollToTop';
 import ScrollUpButton from './components/ScrollUpButton';
 
@@ -30,6 +35,11 @@ function App() {
               <Route path="/calendar" element={<HijriCalendar />} />
               <Route path="/prayer-times" element={<PrayerTimes />} />
               <Route path="/zakat" element={<ZakatHub />} />
+              <Route path="/tasbih" element={<Tasbih />} />
+              <Route path="/names-of-allah" element={<NamesOfAllah />} />
+              <Route path="/adhkar" element={<Adhkar />} />
+              <Route path="/qibla" element={<QiblaFinder />} />
+              <Route path="/mosques" element={<NearbyMosques />} />
               <Route path="/contact" element={<Contact />} />
             </Routes>
           </main>
