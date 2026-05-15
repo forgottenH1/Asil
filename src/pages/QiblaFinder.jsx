@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
-import { Compass, MapPin, AlertTriangle, RefreshCcw, Navigation } from 'lucide-react';
+import { Compass, MapPin, AlertTriangle, RefreshCcw, Navigation, Info } from 'lucide-react';
 
 const QiblaFinder = () => {
   const [coords, setCoords] = useState(null);
@@ -9,7 +9,9 @@ const QiblaFinder = () => {
   const [heading, setHeading] = useState(0);
   const [error, setError] = useState(null);
   const [isCompassActive, setIsCompassActive] = useState(false);
-
+  const [debugInfo, setDebugInfo] = useState('');
+  
+  const isHttps = window.location.protocol === 'https:';
   const kaaba = { lat: 21.4225, lng: 39.8262 };
 
   const calculateQibla = (lat, lng) => {
@@ -39,55 +41,68 @@ const QiblaFinder = () => {
       },
       (err) => {
         setError('تعذر الحصول على الموقع. يرجى تفعيل تحديد الموقع في المتصفح.');
-      }
+      },
+      { enableHighAccuracy: true }
     );
   };
 
-  const startOrientationListener = () => {
-    const handleOrientation = (event) => {
-      let compassHeading = 0;
-      
-      if (event.webkitCompassHeading !== undefined) {
-        // iOS
-        compassHeading = event.webkitCompassHeading;
-      } else if (event.alpha !== null) {
-        // Android / Other
-        // If the event is absolute, alpha is relative to North
-        // If not, we still try to use it
-        compassHeading = 360 - event.alpha;
-      }
+  const handleOrientation = (event) => {
+    let compassHeading = null;
+    
+    // 1. iOS Check (webkitCompassHeading)
+    if (event.webkitCompassHeading !== undefined) {
+      compassHeading = event.webkitCompassHeading;
+      setDebugInfo('iOS: ' + Math.round(compassHeading));
+    } 
+    // 2. Android/Chrome Absolute Check
+    else if (event.absolute === true && event.alpha !== null) {
+      compassHeading = event.alpha;
+      setDebugInfo('Abs: ' + Math.round(compassHeading));
+    }
+    // 3. Fallback to Alpha (Relative North)
+    else if (event.alpha !== null) {
+      compassHeading = 360 - event.alpha;
+      setDebugInfo('Rel: ' + Math.round(compassHeading));
+    }
 
+    if (compassHeading !== null) {
       setHeading(compassHeading);
       setIsCompassActive(true);
-    };
-
-    if (window.DeviceOrientationEvent) {
-      if ('ondeviceorientationabsolute' in window) {
-        window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-      } else {
-        window.addEventListener('deviceorientation', handleOrientation, true);
-      }
-      return true;
     }
-    return false;
   };
 
   const initCompass = async () => {
+    if (!isHttps && window.location.hostname !== 'localhost') {
+      setError('البوصلة تتطلب اتصالاً آمناً (HTTPS) للعمل على الهواتف.');
+      return;
+    }
+
+    // iOS 13+ Permission
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-      // iOS 13+ requires permission
       try {
         const permissionState = await DeviceOrientationEvent.requestPermission();
         if (permissionState === 'granted') {
-          startOrientationListener();
+          window.addEventListener('deviceorientation', handleOrientation, true);
         } else {
-          setError('يجب الموافقة على صلاحية الوصول للحساسات لتشغيل البوصلة.');
+          setError('يجب الموافقة على صلاحية الوصول للحساسات.');
         }
       } catch (err) {
-        setError('حدث خطأ أثناء طلب صلاحية البوصلة.');
+        setError('خطأ في طلب الصلاحية: ' + err.message);
       }
     } else {
-      // Non-iOS or older iOS
-      if (!startOrientationListener()) {
+      // Android / Other
+      if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+        window.addEventListener('deviceorientation', handleOrientation, true);
+        // We set active to true to hide the button, but we'll see if data actually comes in
+        setIsCompassActive(true);
+        setTimeout(() => {
+          if (heading === 0 && !debugInfo) {
+            setError('لم يتم استقبال بيانات من الحساسات. تأكد من دعم جهازك للبوصلة.');
+            setIsCompassActive(false);
+          }
+        }, 3000);
+      } else {
         setError('جهازك لا يدعم حساس البوصلة.');
       }
     }
@@ -95,6 +110,10 @@ const QiblaFinder = () => {
 
   useEffect(() => {
     getLocation();
+    return () => {
+      window.removeEventListener('deviceorientation', handleOrientation);
+      window.removeEventListener('deviceorientationabsolute', handleOrientation);
+    };
   }, []);
 
   const relativeQibla = qibla !== null ? (qibla - heading + 360) % 360 : 0;
@@ -103,15 +122,21 @@ const QiblaFinder = () => {
     <div className="min-h-screen py-12 px-4">
       <Helmet>
         <title>أصيل | بوصلة القبلة</title>
-        <meta name="description" content="حدد اتجاه القبلة بدقة من أي مكان في العالم باستخدام بوصلة أصيل المتطورة." />
       </Helmet>
 
       <div className="container mx-auto max-w-lg">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="glass-card p-10 text-center"
+          className="glass-card p-10 text-center relative overflow-hidden"
         >
+          {/* HTTPS Warning */}
+          {!isHttps && window.location.hostname !== 'localhost' && (
+            <div className="absolute top-0 left-0 right-0 bg-amber-500 text-white text-[10px] py-1 font-arabic">
+              يجب استخدام HTTPS لتفعيل البوصلة
+            </div>
+          )}
+
           <h1 className="text-3xl font-bold text-gray-900 mb-8 font-arabic">اتجاه القبلة</h1>
 
           {!coords ? (
@@ -123,21 +148,13 @@ const QiblaFinder = () => {
               <button onClick={getLocation} className="btn-primary px-8 py-3 rounded-xl font-arabic">
                 تفعيل الموقع
               </button>
-              {error && (
-                <div className="mt-6 flex items-center justify-center gap-2 text-red-500 bg-red-50 p-4 rounded-xl font-arabic text-sm">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span>{error}</span>
-                </div>
-              )}
             </div>
           ) : (
             <div className="py-8">
               <div className="relative w-64 h-64 mx-auto mb-12">
-                {/* Compass Background */}
                 <div className="absolute inset-0 rounded-full border-4 border-gray-100 shadow-inner"></div>
                 <div className="absolute inset-4 rounded-full border border-gray-50 bg-gray-50/30"></div>
                 
-                {/* Degree Markers */}
                 {[0, 90, 180, 270].map((deg) => (
                   <div 
                     key={deg} 
@@ -151,31 +168,28 @@ const QiblaFinder = () => {
                   </div>
                 ))}
 
-                {/* Qibla Indicator */}
                 <motion.div
                   animate={{ rotate: relativeQibla }}
-                  transition={{ type: 'spring', stiffness: 50 }}
+                  transition={{ type: 'spring', stiffness: 50, damping: 15 }}
                   className="absolute inset-0 flex items-center justify-center z-10"
                 >
                   <div className="relative w-full h-full">
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-8 bg-gold rounded-full shadow-lg flex items-center justify-center pointer-events-none">
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-8 bg-gold rounded-full shadow-lg flex items-center justify-center">
                       <div className="w-2 h-2 bg-white rounded-full"></div>
                     </div>
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 w-1 h-28 bg-gradient-to-b from-gold to-transparent rounded-full"></div>
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 w-1.5 h-28 bg-gradient-to-b from-gold to-transparent rounded-full shadow-sm"></div>
                   </div>
                 </motion.div>
 
-                {/* Compass Icon */}
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Compass className={`w-16 h-16 transition-colors duration-500 ${isCompassActive ? 'text-primary/20' : 'text-gray-200'}`} />
+                  <Compass className={`w-16 h-16 transition-colors duration-500 ${isCompassActive ? 'text-primary/10' : 'text-gray-200'}`} />
                 </div>
 
-                {/* Overlay for inactive compass */}
                 {!isCompassActive && (
-                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/10 backdrop-blur-[2px] rounded-full">
+                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/5 backdrop-blur-[2px] rounded-full">
                     <button 
                       onClick={initCompass}
-                      className="bg-white shadow-xl px-6 py-3 rounded-full flex items-center gap-2 text-primary font-bold hover:scale-105 transition-transform"
+                      className="bg-white shadow-2xl px-6 py-3 rounded-full flex items-center gap-2 text-primary font-bold hover:scale-105 transition-transform border border-primary/10"
                     >
                       <Navigation className="w-5 h-5 fill-current" />
                       <span className="font-arabic">تشغيل البوصلة</span>
@@ -185,30 +199,42 @@ const QiblaFinder = () => {
               </div>
 
               <div className="space-y-4">
-                <div className="bg-gray-50 rounded-2xl p-6">
-                  <div className="text-sm text-gray-400 mb-1 font-arabic">الانحراف عن الشمال الحقيقي</div>
-                  <div className="text-3xl font-bold text-gray-800 font-sans">{Math.round(qibla)}°</div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-50 rounded-2xl p-4">
+                    <div className="text-[10px] text-gray-400 mb-1 font-arabic">زاوية القبلة</div>
+                    <div className="text-xl font-bold text-gray-800 font-sans">{Math.round(qibla)}°</div>
+                  </div>
+                  <div className="bg-gray-50 rounded-2xl p-4 border border-primary/5">
+                    <div className="text-[10px] text-gray-400 mb-1 font-arabic">اتجاه الهاتف</div>
+                    <div className="text-xl font-bold text-primary font-sans">{Math.round(heading)}°</div>
+                  </div>
                 </div>
                 
-                <p className="text-sm text-gray-500 font-arabic leading-relaxed px-4">
+                {debugInfo && (
+                  <div className="text-[10px] text-gray-300 font-sans uppercase tracking-widest">
+                    Sensor: {debugInfo}
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-500 font-arabic leading-relaxed px-4">
                   {isCompassActive 
-                    ? "يرجى حمل الهاتف بشكل مسطح وبعيداً عن الأجهزة المعدنية لضمان دقة البوصلة."
-                    : "اضغط على زر تشغيل البوصلة أعلاه لتفعيل حساسات الحركة في هاتفك."}
+                    ? "الآن قم بتدوير الهاتف حتى يشير السهم الذهبي للأعلى مباشرة."
+                    : "اضغط على الزر لتفعيل الحساسات."}
                 </p>
 
-                <div className="flex flex-col gap-2 pt-4">
+                <div className="flex flex-col gap-2 pt-2">
                   {error && (
-                    <div className="flex items-center justify-center gap-2 text-red-500 bg-red-50 p-3 rounded-xl font-arabic text-xs mb-2">
-                      <AlertTriangle className="w-4 h-4" />
+                    <div className="flex items-center justify-center gap-2 text-red-500 bg-red-50 p-3 rounded-xl font-arabic text-xs">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
                       <span>{error}</span>
                     </div>
                   )}
                   
                   <button 
                     onClick={() => { setCoords(null); setIsCompassActive(false); getLocation(); }}
-                    className="flex items-center justify-center gap-2 text-primary font-bold mx-auto hover:scale-105 transition-transform"
+                    className="flex items-center justify-center gap-2 text-gray-400 font-medium mx-auto text-sm hover:text-primary transition-colors"
                   >
-                    <RefreshCcw className="w-4 h-4" />
+                    <RefreshCcw className="w-3 h-3" />
                     <span className="font-arabic">تحديث الموقع</span>
                   </button>
                 </div>
@@ -217,16 +243,17 @@ const QiblaFinder = () => {
           )}
         </motion.div>
 
-        {/* Info Card */}
-        <div className="mt-8 bg-blue-50 border border-blue-100 rounded-2xl p-6 flex gap-4 text-right">
-          <div className="flex-grow">
-            <h4 className="font-bold text-blue-900 mb-1 font-arabic">ملاحظة تقنية</h4>
-            <p className="text-sm text-blue-800/80 font-arabic leading-relaxed">
-              تعتمد دقة البوصلة على حساسات هاتفك. في حالة عدم وجود حساس بوصلة، يمكنك الاعتماد على الزاوية المذكورة أعلاه (حوالي {Math.round(qibla)} درجة من الشمال).
+        <div className="mt-6 bg-blue-50/50 border border-blue-100/50 rounded-2xl p-5 flex gap-4 text-right">
+          <div className="flex-grow text-xs leading-relaxed">
+            <h4 className="font-bold text-blue-900 mb-1 font-arabic flex items-center justify-end gap-1">
+              كيفية الاستخدام
+              <Info className="w-3 h-3" />
+            </h4>
+            <p className="text-blue-800/70 font-arabic">
+              1. ضع الهاتف بشكل أفقي تماماً.<br/>
+              2. ابتعد عن المعادن والمغناطيس.<br/>
+              3. اتبع السهم الذهبي للوصول لاتجاه الكعبة.
             </p>
-          </div>
-          <div className="p-2 h-fit bg-blue-100 rounded-lg text-blue-600">
-            <AlertTriangle className="w-5 h-5" />
           </div>
         </div>
       </div>
