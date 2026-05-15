@@ -11,6 +11,7 @@ const QiblaFinder = () => {
   const [isCompassActive, setIsCompassActive] = useState(false);
   const [debugInfo, setDebugInfo] = useState('');
   
+  const hasReceivedData = useRef(false);
   const isHttps = window.location.protocol === 'https:';
   const kaaba = { lat: 21.4225, lng: 39.8262 };
 
@@ -48,30 +49,38 @@ const QiblaFinder = () => {
 
   const handleOrientation = (event) => {
     let compassHeading = null;
+    let type = '';
     
-    // 1. iOS Check (webkitCompassHeading)
+    // 1. iOS gives heading directly (clockwise)
     if (event.webkitCompassHeading !== undefined) {
       compassHeading = event.webkitCompassHeading;
-      setDebugInfo('iOS: ' + Math.round(compassHeading));
+      type = 'iOS';
     } 
-    // 2. Android/Chrome Absolute Check
-    else if (event.absolute === true && event.alpha !== null) {
-      compassHeading = event.alpha;
-      setDebugInfo('Abs: ' + Math.round(compassHeading));
-    }
-    // 3. Fallback to Alpha (Relative North)
+    // 2. Android/W3C Standard (alpha is counter-clockwise)
     else if (event.alpha !== null) {
-      compassHeading = 360 - event.alpha;
-      setDebugInfo('Rel: ' + Math.round(compassHeading));
+      // Heading should be clockwise from North
+      compassHeading = (360 - event.alpha) % 360;
+      type = event.absolute ? 'Abs' : 'Rel';
+    } 
+    // 3. Event fired but data is null (Sensors initializing or blocked)
+    else {
+      setDebugInfo('Sensors active but returning NULL');
+      return;
     }
 
     if (compassHeading !== null) {
+      hasReceivedData.current = true;
       setHeading(compassHeading);
       setIsCompassActive(true);
+      setDebugInfo(`${type}: ${Math.round(compassHeading)}`);
+      setError(null); // Clear errors if it started working
     }
   };
 
   const initCompass = async () => {
+    setError(null);
+    hasReceivedData.current = false;
+    
     if (!isHttps && window.location.hostname !== 'localhost') {
       setError('البوصلة تتطلب اتصالاً آمناً (HTTPS) للعمل على الهواتف.');
       return;
@@ -85,27 +94,34 @@ const QiblaFinder = () => {
           window.addEventListener('deviceorientation', handleOrientation, true);
         } else {
           setError('يجب الموافقة على صلاحية الوصول للحساسات.');
+          return;
         }
       } catch (err) {
         setError('خطأ في طلب الصلاحية: ' + err.message);
+        return;
       }
     } else {
       // Android / Other
       if (window.DeviceOrientationEvent) {
         window.addEventListener('deviceorientationabsolute', handleOrientation, true);
         window.addEventListener('deviceorientation', handleOrientation, true);
-        // We set active to true to hide the button, but we'll see if data actually comes in
-        setIsCompassActive(true);
-        setTimeout(() => {
-          if (heading === 0 && !debugInfo) {
-            setError('لم يتم استقبال بيانات من الحساسات. تأكد من دعم جهازك للبوصلة.');
-            setIsCompassActive(false);
-          }
-        }, 3000);
       } else {
-        setError('جهازك لا يدعم حساس البوصلة.');
+        setError('جهازك لا يدعم حساس البوصلة عبر المتصفح.');
+        return;
       }
     }
+
+    // Optimistically set active
+    setIsCompassActive(true);
+    setDebugInfo('جاري الاتصال بالحساسات...');
+
+    // Check if we actually got data after 4 seconds
+    setTimeout(() => {
+      if (!hasReceivedData.current) {
+        setIsCompassActive(false);
+        setError('لم يتم استقبال قراءات من البوصلة. قد تحتاج لتدوير هاتفك على شكل رقم 8 لمعايرته، أو أن المتصفح يمنع الوصول.');
+      }
+    }, 4000);
   };
 
   useEffect(() => {
@@ -211,8 +227,8 @@ const QiblaFinder = () => {
                 </div>
                 
                 {debugInfo && (
-                  <div className="text-[10px] text-gray-300 font-sans uppercase tracking-widest">
-                    Sensor: {debugInfo}
+                  <div className="text-[10px] text-gray-400 font-sans uppercase tracking-widest bg-gray-50 py-1 px-3 rounded-full inline-block">
+                    {debugInfo}
                   </div>
                 )}
 
@@ -224,14 +240,14 @@ const QiblaFinder = () => {
 
                 <div className="flex flex-col gap-2 pt-2">
                   {error && (
-                    <div className="flex items-center justify-center gap-2 text-red-500 bg-red-50 p-3 rounded-xl font-arabic text-xs">
-                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <div className="flex items-center justify-center gap-2 text-red-500 bg-red-50 p-3 rounded-xl font-arabic text-xs leading-relaxed text-right">
+                      <AlertTriangle className="w-5 h-5 shrink-0" />
                       <span>{error}</span>
                     </div>
                   )}
                   
                   <button 
-                    onClick={() => { setCoords(null); setIsCompassActive(false); getLocation(); }}
+                    onClick={() => { setCoords(null); setIsCompassActive(false); setDebugInfo(''); getLocation(); }}
                     className="flex items-center justify-center gap-2 text-gray-400 font-medium mx-auto text-sm hover:text-primary transition-colors"
                   >
                     <RefreshCcw className="w-3 h-3" />
