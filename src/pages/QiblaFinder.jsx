@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
-import { Compass, MapPin, AlertTriangle, RefreshCcw } from 'lucide-react';
+import { Compass, MapPin, AlertTriangle, RefreshCcw, Navigation } from 'lucide-react';
 
 const QiblaFinder = () => {
   const [coords, setCoords] = useState(null);
   const [qibla, setQibla] = useState(null);
   const [heading, setHeading] = useState(0);
   const [error, setError] = useState(null);
-  const [permission, setPermission] = useState('prompt');
+  const [isCompassActive, setIsCompassActive] = useState(false);
 
   const kaaba = { lat: 21.4225, lng: 39.8262 };
 
@@ -36,35 +36,65 @@ const QiblaFinder = () => {
         const { latitude, longitude } = pos.coords;
         setCoords({ latitude, longitude });
         setQibla(calculateQibla(latitude, longitude));
-        setPermission('granted');
       },
       (err) => {
         setError('تعذر الحصول على الموقع. يرجى تفعيل تحديد الموقع في المتصفح.');
-        setPermission('denied');
       }
     );
   };
 
-  useEffect(() => {
-    getLocation();
-
+  const startOrientationListener = () => {
     const handleOrientation = (event) => {
-      // For iOS devices that need permission for orientation
+      let compassHeading = 0;
+      
       if (event.webkitCompassHeading !== undefined) {
-        setHeading(event.webkitCompassHeading);
+        // iOS
+        compassHeading = event.webkitCompassHeading;
       } else if (event.alpha !== null) {
-        // For other devices, note that alpha is not always compass-relative
-        setHeading(360 - event.alpha);
+        // Android / Other
+        // If the event is absolute, alpha is relative to North
+        // If not, we still try to use it
+        compassHeading = 360 - event.alpha;
       }
+
+      setHeading(compassHeading);
+      setIsCompassActive(true);
     };
 
     if (window.DeviceOrientationEvent) {
-      window.addEventListener('deviceorientation', handleOrientation, true);
+      if ('ondeviceorientationabsolute' in window) {
+        window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+      } else {
+        window.addEventListener('deviceorientation', handleOrientation, true);
+      }
+      return true;
     }
+    return false;
+  };
 
-    return () => {
-      window.removeEventListener('deviceorientation', handleOrientation);
-    };
+  const initCompass = async () => {
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      // iOS 13+ requires permission
+      try {
+        const permissionState = await DeviceOrientationEvent.requestPermission();
+        if (permissionState === 'granted') {
+          startOrientationListener();
+        } else {
+          setError('يجب الموافقة على صلاحية الوصول للحساسات لتشغيل البوصلة.');
+        }
+      } catch (err) {
+        setError('حدث خطأ أثناء طلب صلاحية البوصلة.');
+      }
+    } else {
+      // Non-iOS or older iOS
+      if (!startOrientationListener()) {
+        setError('جهازك لا يدعم حساس البوصلة.');
+      }
+    }
+  };
+
+  useEffect(() => {
+    getLocation();
   }, []);
 
   const relativeQibla = qibla !== null ? (qibla - heading + 360) % 360 : 0;
@@ -137,8 +167,21 @@ const QiblaFinder = () => {
 
                 {/* Compass Icon */}
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Compass className="w-16 h-16 text-gray-200" />
+                  <Compass className={`w-16 h-16 transition-colors duration-500 ${isCompassActive ? 'text-primary/20' : 'text-gray-200'}`} />
                 </div>
+
+                {/* Overlay for inactive compass */}
+                {!isCompassActive && (
+                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/10 backdrop-blur-[2px] rounded-full">
+                    <button 
+                      onClick={initCompass}
+                      className="bg-white shadow-xl px-6 py-3 rounded-full flex items-center gap-2 text-primary font-bold hover:scale-105 transition-transform"
+                    >
+                      <Navigation className="w-5 h-5 fill-current" />
+                      <span className="font-arabic">تشغيل البوصلة</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-4">
@@ -148,16 +191,27 @@ const QiblaFinder = () => {
                 </div>
                 
                 <p className="text-sm text-gray-500 font-arabic leading-relaxed px-4">
-                  يرجى حمل الهاتف بشكل مسطح وبعيداً عن الأجهزة المعدنية أو المغناطيسية لضمان دقة البوصلة.
+                  {isCompassActive 
+                    ? "يرجى حمل الهاتف بشكل مسطح وبعيداً عن الأجهزة المعدنية لضمان دقة البوصلة."
+                    : "اضغط على زر تشغيل البوصلة أعلاه لتفعيل حساسات الحركة في هاتفك."}
                 </p>
 
-                <button 
-                  onClick={() => { setCoords(null); getLocation(); }}
-                  className="flex items-center justify-center gap-2 text-primary font-bold mx-auto pt-4 hover:scale-105 transition-transform"
-                >
-                  <RefreshCcw className="w-4 h-4" />
-                  <span className="font-arabic">تحديث الموقع</span>
-                </button>
+                <div className="flex flex-col gap-2 pt-4">
+                  {error && (
+                    <div className="flex items-center justify-center gap-2 text-red-500 bg-red-50 p-3 rounded-xl font-arabic text-xs mb-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      <span>{error}</span>
+                    </div>
+                  )}
+                  
+                  <button 
+                    onClick={() => { setCoords(null); setIsCompassActive(false); getLocation(); }}
+                    className="flex items-center justify-center gap-2 text-primary font-bold mx-auto hover:scale-105 transition-transform"
+                  >
+                    <RefreshCcw className="w-4 h-4" />
+                    <span className="font-arabic">تحديث الموقع</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
